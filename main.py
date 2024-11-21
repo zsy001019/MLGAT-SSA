@@ -135,7 +135,7 @@ for i in range(num_samples):
         adj_matrix=adj_matrix,
         impedance_matrix=impedance_matrix_normalized,
         label_sample=labels_normalized[i],
-        impedance_threshold=0.1  
+        impedance_threshold=0.1 
     )
     graphs.append(graph)
 
@@ -185,7 +185,9 @@ class CombinedModel(nn.Module):
         self.global_att2 = GlobalAttentionLayer(hidden_channels // 2, hidden_channels)
         self.global_att3 = GlobalAttentionLayer(hidden_channels, hidden_channels * 2)
         self.global_att4 = GlobalAttentionLayer(hidden_channels * 2, hidden_channels)
-
+        # 添加线性变换层，当没有边时使用
+        self.local_transform = nn.Linear(in_channels, hidden_channels)
+        self.global_transform = nn.Linear(in_channels, hidden_channels)
         # 全连接层，增加更多的层
         self.fc1 = nn.Linear(hidden_channels * 2, 128)  # 输入为 hidden_channels * 2，输出为 128
         self.fc2 = nn.Linear(128, 64)  # 新增全连接层，从 128 到 64
@@ -206,7 +208,7 @@ class CombinedModel(nn.Module):
             x_local = F.elu(self.local_gat1(x, data.edge_index_local))
             x_local = F.elu(self.local_gat2(x_local, data.edge_index_local))
         else:
-            x_local = x
+            x_local = F.elu(self.local_transform(data.x))
 
         # 全局注意力
         if data.edge_index_global.numel() > 0:
@@ -216,10 +218,7 @@ class CombinedModel(nn.Module):
             x_global = F.elu(self.global_att4(x_global, data.edge_index_global, data.edge_attr_global))
 
         else:
-            x_global = F.elu(self.global_att1.linear(x))  # 强制将全局特征转换为 128 维
-            x_global = F.elu(self.global_att2.linear(x_global))
-            x_global = F.elu(self.global_att3.linear(x_global))
-            x_global = F.elu(self.global_att4.linear(x_global))
+            x_global = F.elu(self.global_transform(data.x))
 
         # 拼接局部和全局特征，并且可学习权重应用于拼接的不同部分
         x_combined = torch.cat([self.local_weight * x_local, self.global_weight * x_global], dim=1)
@@ -242,16 +241,6 @@ class CombinedModel(nn.Module):
 # 模型训练
 # --------------------
 
-# 均方对数误差 (MSLE)
-def msle_loss(y_pred, y_true):
-    return torch.mean((torch.log1p(y_pred) - torch.log1p(y_true)) ** 2)
-
-
-# SMAPE (Symmetric Mean Absolute Percentage Error)
-def smape_loss(y_pred, y_true, epsilon=1e-8):
-    denominator = (torch.abs(y_true) + torch.abs(y_pred)) / 2.0 + epsilon
-    return torch.mean(2 * torch.abs(y_pred - y_true) / denominator)
-
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -269,7 +258,6 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience
 criterion = nn.MSELoss()
 
 
-
 # 训练循环
 num_epochs = 70
 for epoch in range(num_epochs):
@@ -277,7 +265,7 @@ for epoch in range(num_epochs):
     total_loss = 0
 
     for data in train_loader:
-        
+
         data = data.to(device)
 
         # 模型前向传播，计算损失并反向传播
@@ -356,11 +344,8 @@ predictions_original_scale = invert_normalization(predictions_numpy)
 labels_test_original_scale = invert_normalization(labels_test_numpy)
 
 # 计算评估指标
-test_maape_original = mean_arctangent_absolute_percentage_error(labels_test_original_scale, predictions_original_scale)
 test_rmse_original = root_mean_squared_error(labels_test_original_scale, predictions_original_scale)
 test_smape_original = symmetric_mean_absolute_percentage_error(labels_test_original_scale, predictions_original_scale)
 
 print(
-    f'Test MAAPE (Original Scale): {test_maape_original:.2f}%, Test RMSE (Original Scale): {test_rmse_original:.5f}, Test SMAPE (Original Scale): {test_smape_original:.2f}%')
-
-
+    f'Test RMSE (Original Scale): {test_rmse_original:.5f}, Test SMAPE (Original Scale): {test_smape_original:.2f}%')
