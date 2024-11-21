@@ -309,10 +309,6 @@ print(f"Test Loss: {test_loss:.4f}")
 
 
 # 评估指标计算
-def mean_arctangent_absolute_percentage_error(y_true, y_pred):
-    return np.mean(np.arctan(np.abs((y_true - y_pred) / (y_true + 1e-15)))) * 100
-
-
 def root_mean_squared_error(y_true, y_pred):
     return np.sqrt(np.mean((y_true - y_pred) ** 2))
 
