@@ -144,9 +144,9 @@ train_graphs, temp_graphs = train_test_split(graphs, test_size=0.20, random_stat
 val_graphs, test_graphs = train_test_split(temp_graphs, test_size=0.50, random_state=42)
 
 # 创建数据加载器
-train_loader = DataLoader(train_graphs, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_graphs, batch_size=32, shuffle=False)
-test_loader = DataLoader(test_graphs, batch_size=32, shuffle=False)
+train_loader = DataLoader(train_graphs, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_graphs, batch_size=16, shuffle=False)
+test_loader = DataLoader(test_graphs, batch_size=16, shuffle=False)
 
 
 # %%
